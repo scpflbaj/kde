@@ -1,0 +1,164 @@
+K_ZeroFiltering <- function(data,df,min,max,threshold) {
+  #print("K_ZeroFiltering::BEGIN")
+  #print("## Rounding numbers")
+  DIGITS=8
+  auxDF<-round(df[,-c(12,13,14)],digits=DIGITS)
+  setIdx1<-which(auxDF$df.sol.1 > auxDF$df.interval.start & auxDF$df.sol.1 < auxDF$df.interval.stop & auxDF$df.sol.1 > min & auxDF$df.sol.1 < max & 
+                   auxDF$df.a!=0 & auxDF$df.b!=0 & auxDF$df.c!=0 )     
+  #for(idx in setIdx1) print(paste(toString(auxDF$df.interval.start[idx]),":",toString(auxDF$df.sol.1[idx]),":",toString(auxDF$df.interval.stop[idx])))
+  
+  setIdx2<-which(auxDF$df.sol.2 > auxDF$df.interval.start & auxDF$df.sol.2 < auxDF$df.interval.stop & auxDF$df.sol.2 > min & auxDF$df.sol.2 < max & 
+                   auxDF$df.a!=0 & auxDF$df.b!=0 & auxDF$df.c!=0 )    
+  #for(idx in setIdx2) print(paste(toString(auxDF$df.interval.start[idx]),":",toString(auxDF$df.sol.2[idx]),":",toString(auxDF$df.interval.stop[idx])))
+
+  auxDF$df.num.solutions=0
+  auxDF$df.num.solutions[setIdx1]=auxDF$df.num.solutions[setIdx1]+1
+  auxDF$df.num.solutions[setIdx2]=auxDF$df.num.solutions[setIdx2]+1
+  ##
+  ## Marcar las soluciones
+  ##
+  solutions.1<-rep(0,length.out=length(auxDF[,1]))
+  solutions.2<-rep(0,length.out=length(auxDF[,1]))
+  
+  solutions.1[setIdx1]=1
+  solutions.2[setIdx2]=1
+
+  dfFinal<-data.frame()
+  #print("## Resetting number of solutions")
+  auxNumSolutions = unique(sort(c(setIdx1,setIdx2)))
+  if ( length(auxNumSolutions)>0) {
+    diffIntervals = auxNumSolutions
+    dfFiltered = auxDF[c(diffIntervals),]
+    #print(dfFiltered)
+    #print("## Sorting solutions")
+    for(i in diffIntervals) {
+      if ( dfFiltered$df.sol.1 > dfFiltered$df.sol.2 ) {
+        aux<-dfFiltered[i]$df.sol.2
+        dfFiltered$df.sol.2[i]<-dfFiltered$df.sol.1[i]
+        dfFiltered$df.sol.1[i]<-aux
+      }
+    }
+    #print(dfFiltered)
+    
+    ## RULE 4: Debe haber un cambio de clase
+    ### > Calculo de los signos
+    ns1Idx = which(dfFiltered$df.num.solutions==1)
+    ns2Idx = which(dfFiltered$df.num.solutions==2)
+    #print(paste("Num. Solutions = 1 >>",toString(length(ns1Idx))))
+    if (length(ns1Idx)>0) {
+      
+      x.sol=0
+      if (dfFiltered$df.sol.1>0) {
+        idx1=which(solutions.1==1 & solutions.2==0)
+        x.sol = sort(unique(auxDF$df.sol.1[idx1]))
+        #print(idx1)
+        #print(x.sol)
+        #print("<>")
+      }
+      if (dfFiltered$df.sol.2>0) {
+        idx2=which(solutions.1==0 & solutions.2==1)
+        x.sol = c(x.sol,sort(unique(auxDF$df.sol.1[idx2])))
+        #print(idx2)
+        #print(x.sol)
+        #print("><")
+      }
+      x.sol=unique(sort(x.sol))
+      #print(x.sol)
+      
+      x.begin = dfFiltered$df.interval.start[ns1Idx]
+      x.end   = x.sol
+      mdp1    = (x.begin+x.end)/2
+      a       = dfFiltered$df.a[ns1Idx]
+      b       = dfFiltered$df.b[ns1Idx]
+      c       = dfFiltered$df.c[ns1Idx]
+      f       = a*mdp1*mdp1 + b*mdp1 + c
+      
+      #for(i in 1:length(ns1Idx)) {
+        #print(paste(toString(x.begin[i]),":",toString(mdp1[i]),":",toString(x.end[i]),">> a:",toString(a[i])," b:",toString(b[i]), "c:",toString(c[i])," ==> ",toString(f[i])))        
+      #}
+
+      
+      sign1  = sign ( f )
+      
+      x.begin = x.end
+      x.end   = dfFiltered$df.interval.stop[ns1Idx]
+      mdp2    = (x.begin+x.end)/2
+      
+      #for(i in 1:length(ns1Idx)) {
+        #print(paste(toString(x.begin[i]),":",toString(mdp2[i]),":",toString(x.end[i]),">> a:",toString(a[i])," b:",toString(b[i]), "c:",toString(c[i])," ==> ",toString(f[i])))        
+      #}
+      f       = a*mdp2*mdp2 + b*mdp2 + c
+      
+      sign2  = sign ( f )
+      
+      dfFiltered$df.sign1[ns1Idx] = sign1
+      dfFiltered$df.sign2[ns1Idx] = sign2
+      dfFiltered$df.sign3[ns1Idx] = sign2
+      
+      #print(dfFiltered)
+    }
+    
+    #print(paste("Num. Solutions = 2 >>",toString(length(ns2Idx))))
+    if (length(ns2Idx)>0) {
+      x.begin = dfFiltered$df.interval.start[ns2Idx]
+      x.end   = dfFiltered$df.sol.1[ns2Idx]
+      mdp1    = (x.begin+x.end)/2
+      a       = dfFiltered$df.a[ns2Idx]
+      b       = dfFiltered$df.b[ns2Idx]
+      c       = dfFiltered$df.c[ns2Idx]
+      f       = a*mdp1*mdp1 + b*mdp1 + c
+      sign1   = sign ( f )
+      #print(paste(toString(x.begin),":",toString(mdp1),":",toString(x.end),">> a:",toString(a)," b:",toString(b), "c:",toString(c)," ==> ",toString(f)))
+      
+      x.begin = dfFiltered$df.sol.1[ns2Idx]
+      x.end   = dfFiltered$df.sol.2[ns2Idx]
+      mdp2    = (x.begin+x.end)/2
+      f       = a*mdp2*mdp2 + b*mdp2 + c
+      sign2  = sign ( f )
+      #print(paste(toString(x.begin),":",toString(mdp2),":",toString(x.end),">> a:",toString(a)," b:",toString(b), "c:",toString(c)," ==> ",toString(f)))
+      
+      x.begin = dfFiltered$df.sol.2[ns2Idx]
+      x.end   = dfFiltered$df.interval.stop[ns2Idx]
+      mdp3    = (x.begin+x.end)/2
+      f       = a*mdp3*mdp3 + b*mdp3 + c
+      sign3  = sign ( f )
+      #print(paste(toString(x.begin),":",toString(mdp3),":",toString(x.end),">> a:",toString(a)," b:",toString(b), "c:",toString(c)," ==> ",toString(f)))
+      
+      dfFiltered$df.sign1[ns2Idx] = sign1
+      dfFiltered$df.sign2[ns2Idx] = sign2
+      dfFiltered$df.sign3[ns2Idx] = sign3
+      
+      dfFinal<-dfFiltered
+      
+      #print(dfFiltered)
+    }
+  }
+
+  ### > Identificacion de soluciones validas
+  #print("Valid Solution Indexes")
+  #print(dfFinal)
+  val1Idx = which ( dfFinal$df.sign1 != dfFinal$df.sign2 )
+  val2Idx = which ( dfFinal$df.sign2 != dfFinal$df.sign3 )
+  valIdx = c(val1Idx,val2Idx)
+  #print(valIdx)
+  if (length(valIdx)>0) {
+    valIdx=unique(sort(valIdx))
+    candidateZeros=c(dfFinal$df.sol.1[valIdx],dfFinal$df.sol.2[valIdx])
+    candidateZeros=sort(unique(candidateZeros))
+
+    ## RULE 5: Debe haber al menos n instancias entre los ceros, es decir, en cada intervalo.
+    discData = splitter(data,candidateZeros)
+    cpIdx<-rep(0,length.out=length(candidateZeros))
+    for(cpi in 1:length(candidateZeros))
+      if (length(which(discData==cpi)) < threshold ) cpIdx[cpi]=-1
+      else cpIdx[cpi]=threshold
+    #print(cpIdx)
+    zeros=candidateZeros[which(cpIdx!=-1)]
+    #print(paste("Accepted zeros:",toString(zeros)))
+    #print("K_ZeroFiltering::END")
+  } else {
+    #print("K_ZeroFiltering::END")
+    zeros=c()
+  }
+  return(zeros)
+}
